@@ -1,0 +1,590 @@
+---
+title: "Regression Analysis"
+author: "Fang Yu"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: lumen
+    toc: true
+    toc_collapsed: true
+    toc_float: true
+    df_print: paged
+  pdf_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Learning Objective
+1. Review Stats 413 lab content
+2. Familiar with important functions and packages
+3. Practical utilization of regression analysis
+
+***
+
+### Basic R Markdown Operations
+
+You can make text **bold** by surrounding it with two asterisks (`**`) and *italic* by surrounding it with one asterisk (`*`) - as seen throughout this document.
+
+**Demo #1**: Hit *Cmd + Option + I* to insert a new R code chunk. Name this chunk `demo1` (no spaces!) and add code to print your name.
+```{r demo1}
+print("Fang Yu")
+```
+
+**Demo #2**: Assignment in R by using `<-` and print the assigned variables
+```{r demo2}
+x <- 4 * 7 + 90 - 100
+x
+```
+
+**Demo #3**: Read in documents which is in csv format, using the function `read.csv()`, use `head()` to view the first 6 rows of the data
+```{r demo3}
+penguins <- read.csv("penguins.csv")
+head(penguins)
+```
+### Frequency table
+
+let's start to summarize the data. One way to do this for *categorical* variables is by creating a "frequency table". This counts the number of observations (rows) that correspond to each category of a specific variable. To make a frequency table, we use the `table()` function(*need to specify the data name penguins$*):
+```{r frequencytable}
+table(penguins$species)
+```
+
+We can also make "two-way" frequency tables (also called **contingency tables**) to summarize counts for two categorical variables:
+```{r contigencytable}
+table(penguins$species, penguins$island)
+```
+### Numerical Summaries
+Using the `summary()` function, R returns 6 numbers: the minimum (shortest) flipper length, the first quartile, the median (middle) flipper length, the mean (average) flipper length, the third quartile, and the maximum (longest) flipper length:
+```{r summary}
+summary(penguins$flipper_length_mm)
+```
+
+### ggplot
+Create a regression scatterplot using `ggplot()` function, by using the format of `ggplot(data = , aes(x = ,y = ) + geom_point(color = ) + labs(title = ,subtitle = ,x = ,y = ) + theme_bw())`, see the following chunks for detailed illustration of plotting bill_depth(y) against bill_length(x)
+```{r library}
+library(ggplot2)
+ggplot(data = penguins, aes(x = bill_length_mm, y = bill_depth_mm)) +
+  
+  geom_point(color = "purple") +
+  
+  labs(title = "Scatterplot of Bill Depth vs Bill Length",
+       subtitle = "by Fang Yu",
+       x = "Bill Length (in mm)",
+       y = "Bill Depth (in mm)") +
+  
+  theme_bw()
+
+```
+
+### Scatterplot Matrix
+Using the `mtcars` data set, create a scatterplot matrix that includes fuel efficiency (mpg), vehicle weight, horsepower, and engine displacement.
+```{r scatterplotMatrix}
+data(mtcars)
+plot(~mpg + wt + hp + disp, data = mtcars)
+```
+
+### Estimated Model
+To estimate the coefficients of a linear regression model, we use the `lm()` function. The `data` argument will reference the data set that we want to use. The `formula` argument will take the following structure:
+
+**response ~ predictor_1 + predictor_2 + ... + predictor_p**
+
+Create a linear regression model with mpg against wt using the data `mtcars`
+```{r lm}
+lm(mpg ~ wt, data = mtcars)
+```
+
+To visualize the **estimated relationship**, we will add `geom_smooth()` to our scatterplot code:
+```{r visualization}
+ggplot(data = mtcars, aes(x = wt, y = mpg)) +
+  
+  geom_point(color = "grey") +
+  
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "black") +
+  
+  labs(title = "Scatterplot of Vehicle Weight vs Fuel Efficiency",
+       subtitle = "by Fang Yu",
+       x = "Weight",
+       y = "Fuel Efficiency") +
+  
+  theme_bw()
+```
+
+### Testing the overall model
+To use our linear model in a variety of additional ways, we can store the linear model as an object in our global environment. We simple use a left facing arrow (`<-`) and give the model a name.With this stored model, we can retrieve additional summary information, the design matrix, create diagnostic plots, run additional tests, etc. 
+
+First, let's pass our stored model through the `summary()` function. 
+```{r summaryfunction}
+lm_penguins <- lm(body_mass_g ~ flipper_length_mm + bill_length_mm + bill_depth_mm, data = penguins)
+summary(lm_penguins)
+```
+
+Then, we can pass the stored model through the `anova()` function. 
+```{r anova}
+anova(lm_penguins)
+```
+
+If we want to run a test for a linear combination of predictors, we need the estimated variance-covariance matrix for the coefficients. To compute this matrix, pass the stored model through the `vcov()` function.
+```{r vcov}
+vcov(lm_penguins)
+```
+### Prediction Interval
+
+To create a prediction interval, we use the `predict` function, but one of its arguments requires us to input a data frame with the value of each predictor variable. When creating this data frame, **we must type in the variable names exactly as they appear in the original data set**. Once we have *correctly* created the data frame, we pass it through the `predict.lm()` function along with some other necessary arguments.
+
+The `predict.lm()` function has four important arguments:
+
+- The first argument is our stored regression model (`lm_penguins`)
+- `newdata`: the data frame for our new observation
+- `interval`: the type of interval ("prediction" or "confidence")
+- `level`: the desired confidence level
+
+```{r predictionInterval}
+new_penguin <- data.frame(flipper_length_mm = 220, 
+                          bill_length_mm = 45, 
+                          bill_depth_mm = 15.4)
+predict.lm(lm_penguins, 
+           newdata = new_penguin, 
+           interval = "prediction", 
+           level = 0.90)
+```
+For an individual penguin with a flipper length of 220 mm, a bill length of 45 mm, and a bill depth of 15.4 mm, we would predict their body mass to be between (4493, 5797). 
+
+### Confidence Interval
+
+We want an interval for the *average* response of *all* observations with the same set of given values. 
+```{r confidenceInterval}
+predict.lm(lm_penguins, 
+           newdata = new_penguin, 
+           interval = "confidence", 
+           level = 0.90)
+```
+
+### Diagnostic Plots
+
+To create a residual plot, using the following code:
+```{r residualPlot}
+plot(lm_penguins, which = 1, id.n = 0, add.smooth = FALSE)
+```
+
+
+To create a QQ-plot, using the following code:
+```{r QQ-plot}
+plot(lm_penguins, which = 2, id.n = 0, add.smooth = FALSE)
+```
+
+### Factor Variables
+We can use the `as.factor()` function to convert `species`, `island`, and `sex` to factor variables by overwriting the existing variables. 
+
+```{r factor_penguins}
+penguins$species <- as.factor(penguins$species)
+penguins$island <- as.factor(penguins$island)
+penguins$sex <- as.factor(penguins$sex)
+```
+
+If you are interested in the specific levels (or groups) of a factor variable, use the `levels()` function. The first level listed is the *reference category*:
+```{r levels}
+levels(penguins$species)
+levels(penguins$island)
+levels(penguins$sex)
+```
+
+The default ordering is alphabetical. If we wish to change the first level of a factor variable (to give the factor variable a new reference category), we can use the `relevel()` function. To make "Chinstrap" the reference category for the `species` variable, we use the following code:
+
+```{r relevel}
+penguins$species <- relevel(penguins$species, "Chinstrap")
+levels(penguins$species)
+```
+
+### Plotting by group
+
+Create a scatterplot of body mass versus flipper length *by sex*. Use different colors and shapes to denote male and female penguins:
+```{r plotByGroup}
+ggplot(data = penguins, aes(x = flipper_length_mm, 
+                            y = body_mass_g, 
+                            color = sex, 
+                            shape = sex)) +
+  
+  geom_point() +
+  
+  labs(title = "Scatterplot of Body Mass vs Flipper Length by Sex",
+       subtitle = "by Fang Yu",
+       x = "Flipper Length (in mm)",
+       y = "Body Mass (in g)") +
+  
+  theme_bw() + 
+  scale_color_manual(values = c("darkblue", "orange", "grey40")) +
+  scale_shape_manual(values = c(15, 16, 17))
+
+```
+
+### Interactions
+
+To include an interaction term, we use the `*` operator instead of the `+` operator when creating our regression model.
+
+```{r interactionTerm}
+lm_interaction <- lm(bill_length_mm ~ species * bill_depth_mm, data = penguins)
+
+summary(lm_interaction)
+```
+
+We can visualize the estimated model of each species using the following code. 
+
+```{r scatterplot_with_interaction}
+ggplot(data = penguins, aes(x = bill_depth_mm, 
+                            y = bill_length_mm, 
+                            color = species, 
+                            shape = species)) +
+  
+  geom_point() +
+  
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  
+  labs(title = "Scatterplot of Bill Length vs Bill Depth by Species",
+       subtitle = "by Stats 413 Instructional Team",
+       x = "Bill Depth (in mm)",
+       y = "Bill Length (in mm)") +
+  
+  theme_bw()
+```
+
+### Quadratic Fit
+
+When the relationship between the response and a predictor is non-linear, we can attempt a quadratic fit to improve the model by including the `I()` function
+
+```{r quadratic}
+diamonds <- read.csv("diamonds.csv")
+lm_diamonds <- lm(Price ~ Carat + I(Carat^2), data = diamonds)
+summary(lm_diamonds)
+```
+
+To plot the estimated regression model with a quadratic fit, we use a different `formula` in the `geom_smooth()` portion of our code.
+
+```{r quadratic_plot_example}
+ggplot(data = diamonds, aes(x = Carat, y = Price)) + 
+  
+  geom_point() + 
+  
+  geom_smooth(method = "lm", formula = y ~ x + I(x^2), se = FALSE) +
+  
+  labs(title = "Scatterplot of Price vs Carat",
+       subtitle = "by Fang Yu",
+       x = "Weight (in carats)",
+       y = "Price (in dollars)")
+```
+
+### Log Transformation
+
+Use log transformation to fix right-skewed scenario, by including `log()` function and create the histogram for the log transformed variable `body`:
+```{r log}
+weights <- read.csv("mammals.csv", row.names = 1)
+lm_weight <- lm(log(brain) ~ log(body), data = weights)
+summary(lm_weight)
+
+```
+```{r histogram_of_log_transformation}
+ggplot(data = weights, aes(x = log(body))) + 
+  
+  geom_histogram(bins = 8, color = "black", fill = "grey80") + 
+  
+  labs(title = "Histogram of log(Body Weights)",
+       x = "log(Body Weights)",
+       y = "Frequency")
+```
+
+```{r scatterplot_with_log_transformation}
+ggplot(data = weights, aes(x = log(body), y = log(brain))) + 
+  
+  geom_point() + 
+  
+  labs(title = "Scatterplot of log(Brain Weight) vs log(Body Weight)",
+       subtitle = "by Fang Yu",
+       x = "log(Body Weight)",
+       y = "log(Brain Weight)")
+```
+
+### Multicollinearity
+
+Multicollinearity occurs when one predictor has a strong relationship with another predictor or a linear combination of other predictors. We can check for multicollinearity by using the `vif()` function from the `car` package.
+```{r multicollinearity}
+if (!requireNamespace("car", quietly = TRUE)) {
+    install.packages("car")
+}
+library(car)
+sat <- read.csv("sat.csv", row.names = 1)
+lm_salary <- lm(salary ~ expend + ratio + takers + verbal + math, data = sat)
+vif(lm_salary)
+```
+
+Let's see if there are any strong relationships between any pair of predictors by computing the pairwise correlations for the predictors.
+```{r pairwise_correlations}
+cor(sat[, c(1,2,4,5,6)])
+```
+
+### Likelihood Ratio Test & AIT
+
+To run a Likelihood Ratio Test, we use the `anova()` function and specify `LRT` as the `test`. The model with fewer predictors should go first.
+```{r LRT}
+lm_salary1 <- lm(salary ~ expend + ratio + total, data = sat)
+anova(lm_salary1, lm_salary, test = "LRT")
+```
+Use `AIC()` function for model comparison, always choose models with lower AIC values
+```{r AIC}
+AIC(lm_salary1, lm_salary)
+```
+
+### Outliers
+
+We can access the leverages by using `hatvalues()`:
+```{r leverages}
+hatvalues(lm_salary1)
+```
+We can access the Cook's distances by using `cooks.distance()`:
+```{r cooks.distance}
+cooks.distance(lm_salary1)
+```
+By using the following code, plot the leverages against Cook's Distance
+```{r plot_of_leverage_vs_cooks_distance}
+ggplot(mapping = aes(x = cooks.distance(lm_salary1), 
+                     y = hatvalues(lm_salary1))) + 
+         
+         geom_text(aes(label = row.names(sat))) +
+  
+         labs(x = "Cook's Distance",
+              y = "Leverage") +
+         
+         theme_bw()
+```
+- Because the leverages and Cook's distances do not live within the `sat` data set, we use the `mapping` feature of `ggplot()` and supply the vectors to `x` and `y`
+- Instead of `geom_point()`, we can use `geom_text()` and use the row names as the labels of the points
+
+### Cross Validation
+
+Within this package is a function called `cvFit()`. This function has several arguments that we need to specify:
+
+- object: the linear model we wish to test
+- data: the data set
+- y: the response variable
+- cost: cost function - we will use RMSPE (root mean squared prediction error) as discussed in lecture
+- K: number of folds (or groups)
+- R: number of replications
+
+Let's start with the smaller model and run 5-fold cross validation with 10 replications. Note: because these results will change from run-to-run, we will use `set.seed(1234)` in order to remove the randomness of these trials (and to ensure we all get the same answer). 
+To see the individual RMSPE values for each replication, we can use `$reps` to access them. 
+
+```{r cv_5fold_example}
+set.seed(1234)
+if (!requireNamespace("cvTools", quietly = TRUE)) {
+    install.packages("cvTools")
+}
+library(cvTools)
+cv5_salary1 <- cvFit(lm_salary1, 
+                     data = sat,
+                     y = sat$salary, 
+                     cost = rmspe, 
+                     K = 5, 
+                     R = 10)
+cv5_salary1
+cv5_salary1$reps
+```
+
+We can also run Leave-One-Out Cross-Validation (LOOCV) by setting the number of folds to the number of rows in the data set.
+
+```{r LOOCV}
+loocv_salary1 <- cvFit(lm_salary1, 
+                       data = sat,
+                       y = sat$salary, 
+                       cost = rmspe, 
+                       K = nrow(sat))
+loocv_salary1
+```
+
+### Variable Selection
+
+We can perform all of the selection methods, including Forward Selection, Backward Elimination, and Stepwise Regression, using the `step()` function:
+
+- object: the *linear model* of the "starting" point
+- scope: the *formula* of the "ending" point
+- direction: "forward", "backward", or "both" (stepwise)
+- trace: TRUE or FALSE (TRUE outputs the individual steps, FALSE does not)
+
+```{r forward_selection}
+fs_model1 <- step(object = lm(mpg ~ 1, data = mtcars),
+                  scope = mpg ~ cyl + disp + hp + drat + wt + qsec + vs + am + gear + carb,
+                  direction = "forward",
+                  trace = FALSE)
+
+summary(fs_model1)
+```
+```{r backward_elimination}
+be_model <- step(object = lm(mpg ~ ., data = mtcars),
+                 scope = mpg ~ 1,
+                 direction = "backward",
+                 trace = FALSE)
+
+summary(be_model)
+```
+
+To run stepwise regression, change the direction to both:
+```{r stepwise_regression}
+sr_model <- step(object = lm(mpg ~ ., data = mtcars),
+                 scope = mpg ~ 1,
+                 direction = "both",
+                 trace = FALSE)
+summary(sr_model)
+
+```
+
+### Shrinkage Method
+
+To perform ridge regression, we will utilize the `glmnet` function. This function takes in our response variable, the design matrix, and a value for alpha. Alpha is a tuning parameter for elastic net. 
+
+- When set to 0, the function runs Ridge Regression. 
+- When set to 1, the function runs Lasso
+
+The `model.matrix()` function creates the design matrix for the specified linear model.
+```{r ridge_regression}
+if (!requireNamespace("glmnet", quietly = TRUE)) {
+    install.packages("glmnet")
+}
+library(glmnet)
+y <- mtcars$hp
+x <- model.matrix(lm(hp ~ ., data = mtcars))
+ridge_model <- glmnet(x, y, alpha = 0)
+coef(ridge_model, c(0.1, 1, 10, 100))
+```
+
+To find the optimal value for lambda, we can use the package's `cv.glmnet()` function to run cross validation. By default, the function will generate its own sequence for lambda (which is recommended). Passing the stored results through the plot function provides us with a good visual for the model fit versus log(lambda). 
+
+```{r ridge_regression_cross_validation}
+cv_ridge <- cv.glmnet(x, y, alpha = 0)
+
+plot(cv_ridge)
+```
+
+To retrieve the optimal lambda value, using the following code:
+
+```{r optimal_lambda}
+set.seed(1234)
+
+opt_ridge_lambda <- cv_ridge$lambda.min
+
+opt_ridge_lambda
+coef(ridge_model, opt_ridge_lambda)
+```
+
+### Weighted Least Squares
+
+```{r wls}
+peas <- read.csv("galtonpeas.csv")
+wls_peas <- lm(Progeny ~ Parent, data = peas, weights = 1/SD^2)
+summary(wls_peas)
+```
+
+### Logistic Regression
+
+Create and store a model called `logistic_diabetes` that uses *both* `chol` *and* `age` to predict the response `diabetic`. Additional variables get added into the model the same as before (just use the `+` operator). Pass the stored model through the `summary()` function to examine the effect estimates and the significance.
+
+```{r demo4}
+diabetes <- read.csv("diabetes.csv")
+logistic_diabetes <- glm(diabetic ~ chol + age, data = diabetes, family = "binomial")
+summary(logistic_diabetes)
+
+```
+
+The effect estimates get interpreted the same as above, with the caveat that we are now controlling for the other variables in the model.
+
+Because the second logistic regression model is nested within the first model, we can test the deviance to see if including `age` results in a significant improvement.
+
+```{r anova1, error = T}
+logistic_chol <- glm(diabetic ~ chol, data = diabetes, family = "binomial") 
+anova(logistic_chol, logistic_diabetes, test = "LRT")
+```
+
+We find that the results are statistically significant!
+
+Now that there are two predictor variables, plotting can be a little trickier - so we use the `predictorEffects()` function within the `effects()` package to help us out. This function plots the effect of one variable while holding the other variable(s) constant.
+
+```{r logistic_regression_plot, error = T}
+plot(predictorEffects(logistic_diabetes), rescale.axis = FALSE, grid = TRUE)
+```
+
+To calculate the predicted/fitted value for the a new observation, we now have the following code:
+
+```{r fitted_value, error = T}
+predict(logistic_diabetes, data.frame(chol = 350, age = 40), type = "response")
+```
+
+### Bootstrapping
+
+The code below creates a linear that predicts horsepower from fuel efficiency. Using the `summary()` function, we find the point estimate for the slope coefficient (-8.83). We would use this as our estimate of the true slope.  
+
+```{r original_estimates}
+lm_cars <- lm(hp ~ mpg, data = mtcars)
+
+summary(lm_cars)
+```
+
+If we are unsure about the variability around this estimate (or the distribution it follows), bootstrapping can help us define that uncertainty. 
+
+In Section 1 of the code below, we first define how many replications we wish to run (this should be a very large number) and then we create an empty vector (of the same size) to store the results of each replication.
+
+In Section 2 of the code below, we run a "for" loop which cycles through the code inside as many times as we specify (here we are running this from an index of 1 to the number of replications specified in Section 1). Inside the for loop, the first line of code takes a random sample (with replacement) from our data set. The `sample()` function use three arguments:
+
+ - The first argument is the range of what to sample. Here, we choose the entire `mtcars` data set (i.e. from 1 to the number of rows in the data set).
+ - The second argument is how many observations we wish to randomly take. Here, we would like to take the same size sample as the data set.
+ - The last argument is to specify that we wish to sample *with* replacement.
+ 
+This function only returns random integers so we must pass it through the `mtcars[]` data frame to extract the data of the corresponding rows. The second line of code inside the for loop retrieves the estimate of the slope coefficient for the linear model run on the sample randomly drawn on the first line. This is then stored in index "i" of the empty vector we created in Section 1. Try it out! (Note: sometimes it takes a little bit of time to run.)
+
+```{r bootstrap_example}
+# Section 1
+reps <- 10000
+bootstrap_dist <- vector(length = reps)
+
+# Section 2
+for (i in 1:reps) {
+  bootstrap_resample <- mtcars[sample(1:nrow(mtcars), nrow(mtcars), replace = TRUE), ]
+  bootstrap_dist[i] <- lm(hp ~ mpg, data = bootstrap_resample)$coefficients[2]
+}
+```
+
+To quantify the uncertainty of our estimate, we take the standard deviation of the stored bootstrapped estimates. 
+
+```{r bootstrapSummary}
+sd(bootstrap_dist)
+```
+
+From the original model, the standard error of the slope estimate was 1.31. This value shouldn't be too far off. 
+
+Finally, we can plot the bootstrapped distribution to get an idea of its shape.
+
+```{r bootstrap_histogram}
+# First store the bootstrap vector as a data frame
+bootstrapped_data <- data.frame(estimates = bootstrap_dist)
+
+# Then use ggplot to visualize the bootstrapped data
+ggplot(data = bootstrapped_data, aes(x = estimates)) + 
+  geom_histogram(bins = 30, color = "black", fill = "grey")+
+  labs(title = "Boostrapped Distribution",
+       x = "Estimates of the Slope",
+       y = "Frequency")+
+  theme_bw()
+```
+
+The distribution is roughly symmetric with a slight left skew. 
+
+Bootstrapping is a very helpful technique that can be used to quantify the uncertainty for any statistic (mean, median, variance, slope estimate! 
+
+***
+
+
+
+
+
+
+
+
+
+
